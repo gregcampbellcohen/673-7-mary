@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <title>MAP673 Lesson 06</title>
+
+    <link
+      href="https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/litera/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      #map {
+        width: 100%;
+        height: calc(40vh);
+      }
+
+      #about {
+        max-height: calc(80vh);
+        overflow-y: scroll;
+      }
+
+      .legend circle {
+        fill: none;
+        stroke: #ccc;
+      }
+
+      .legend text {
+        fill: #777;
+        font: 10px sans-serif;
+        text-anchor: middle;
+      }
+
+      #ui {
+        position: absolute;
+        right: 1em;
+        top: 1em;
+      }
+
+      .state {
+        fill: #CC444B;
+        stroke: whitesmoke;
+        stroke-width: .7;
+      }
+
+      .facility {
+        fill: #cf5635;
+        stroke: white;
+        stroke-width: .3;
+        opacity: 1;
+      }
+
+      .facility:hover {
+        stroke-width: 2;
+      }
+
+      .my-tooltip {
+        background-color:#df7373
+      }
+
+      /* Small devices (landscape phones, 576px and up) */
+      @media (min-width: 576px) {
+      }
+
+      /* Medium devices (tablets, 768px and up) */
+      @media (min-width: 768px) {
+        #map {
+          height: calc(60vh);
+        }
+      }
+
+      /* Large devices (desktops, 992px and up) */
+      @media (min-width: 992px) {
+        #map {
+          height: calc(80vh);
+        }
+      }
+    </style>
+  </head>
+
+
+<body>
+  <div class="container-fluid">
+    <header class="row py-3 bg-dark text-white">
+      <div class="col mx-2">
+        <h1 class="h1">Greenhouse Gas Emissions by Facilities in the United States</h1>
+      </div>
+    </header>
+
+    <section class="row bg-secondary ">
+      <div class="col-12 col-md-7 col-lg-8 px-0">
+        <div id="map" class="bg-light position-relative">
+          <div id="ui" class="dropdown">
+            <a class="btn btn-secondary dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
+              data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              All facilities
+            </a>
+            <div class="dropdown-menu" aria-labelledby="dropdownMenuLink"></div>
+          </div>
+        </div>
+      </div>
+      <aside id="about" class="col-12 col-md-5 col-lg-4 text-dark py-2">
+        <section>
+          <h2 class="h2 text-dark">About this map</h2>
+          <p>This map was made by Greg Campbell-Cohen for NewMapsPlus on December 17, 2020. The data is sourced from the US Census Bureau and the EPA Air Emissions Inventories. In my professional life, I frequently butt heads with the manager of the LaFarge Plant, located in the Albany area (under minerals) over air pollution, though we recently had a triumphant victory over them in the Albany County Legislature. I was surprised to see the Norlite facility up here wasn't listed under chemicals.</p>
+        </section>
+      </aside>
+    </section>
+    <footer class="row bg-dark text-white py-3">
+      <div class="col mx-2">
+        <ul class="list-unstyled">
+          <li>Map authored by <a href="https://www.twitter.com/gcampbellcohen">@gcampbellcohen</a></li>
+          <li>data sourced from
+            <a href="https://www.census.gov/geo/maps-data/data/tiger-cart-boundary.html">Cartographic Boundary Files</a>
+            and the
+            <a href="https://www.epa.gov/air-emissions-inventories/emissions-inventory-system-eis-gateway">EPA Air
+              Emissions Inventories</a></li>
+        </ul>
+      </div>
+    </footer>
+  </div> <!-- end .container-fluid -->
+
+
+    <!-- JS, Popper.js, and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.min.js" integrity="sha384-w1Q4orYjBQndcko6MimVbzY0tgp4pWB4lZ7lr30WKz0vr/aWKhXdBNmNb5D92v7s" crossorigin="anonymous"></script>
+    <script src="https://d3js.org/d3.v6.js"></script>
+    <script src="https://unpkg.com/topojson@3"></script>
+    <script>
+      // asynchronous calls to data files
+      const statesJson = d3.json("data/us-states.json");
+      const facilityCSV = d3.csv("data/facility-emissions-2016.csv");
+
+      // use promise to call all data files, then send data to callback
+      Promise.all([statesJson, facilityCSV])
+        .then(drawMap)
+        .catch((error) => {
+          console.log(error);
+        });
+
+      // function called when Promise above is complete
+      function drawMap(data) {
+        console.log(data);
+        // select the HTML element that will hold our map
+        const mapContainer = d3.select("#map"); //selecting map div in html
+
+        // determine width and height of map from container
+        const width = mapContainer.node().offsetWidth - 60;
+        const height = mapContainer.node().offsetHeight - 60;
+
+        const svg = mapContainer
+          .append("svg") // appending to map div in html
+          .attr("width", width)
+          .attr("height", height)
+          .classed("position-absolute", true) // add bootstrap class
+          .style("top", "40px") // leaving margin of 40px at top
+          .style("left", "30px"); // margin 30px at left
+
+        // data is array of our two datasets
+        const statesData = data[0];
+        const facilityData = data[1];
+
+        const geojson = topojson.feature(statesData, {
+          type: "GeometryCollection",
+          geometries: statesData.objects.cb_2016_us_state_20m.geometries,
+        }); // converting topo to geojson by selecting geometry attribute from the file
+
+        const projection = d3.geoAlbersUsa().fitSize([width, height], geojson); // projecting in albers, fitting the data geometry to size of the svg
+
+        const path = d3.geoPath().projection(projection); // renders geometry to svg
+
+        // Create  div for the tooltip and hide with opacity
+        const tooltip = d3
+          .select(".container-fluid")
+          .append("div")
+          .attr(
+            "class",
+            "my-tooltip py-1 px-2 text-white rounded position-absolute invisible"
+          );
+
+        // when mouse moves over the mapContainer
+        mapContainer.on("mousemove", (event) => {
+          // update the position of the tooltip
+          console.log(event);
+          tooltip
+            .style("left", event.pageX + 10 + "px")
+            .style("top", event.pageY - 30 + "px");
+        });
+
+        const states = svg
+          .append("g")
+          .selectAll("path")
+          .data(geojson.features)
+          .join("path")
+          .attr("d", path)
+          .attr("class", "state");
+
+        // define radius generator
+        const radius = d3.scaleSqrt().domain([0, 1e6]).range([1, 9]);
+
+        // define color generator
+        const color = d3.scaleOrdinal(d3.schemeTableau10);
+
+        const facilities = svg
+          .append("g") // append new g element
+          .selectAll("circle") // select all the circles
+          .data(
+            facilityData.sort(function (a, b) {
+              return b.Total - a.Total; // place the large ones on the bottom
+            })
+          )
+          .join("circle") // join that data to circle elements
+          .attr("cx", (d) => {
+            // feed the long/lat to the projection generator
+            d.position = projection([d.Longitude, d.Latitude]); // create a new data attribute
+            return d.position[0]; // position the x
+          })
+          .attr("cy", (d) => {
+            return d.position[1]; // position the y
+          })
+          .attr("r", (d) => {
+            return radius(+d.Total);
+          })
+          .style("fill", (d) => {
+            return color(d.Industry_Type);
+          })
+          .attr("class", "facility"); // give each circle a class name
+        // applies event listeners to our polygons for user interaction
+        facilities
+          .on("mouseover", (event, d) => {
+            d3.select(event.currentTarget).classed("hover", true).raise(); // select it, add a class name, and bring to front
+            tooltip
+              .classed("invisible", false)
+              .html(
+                `${
+                  d.Facility_Name +
+                  "<br/>" +
+                  Intl.NumberFormat().format(d.Total)
+                } metric tons`
+              );
+          })
+          .on("mouseout", (event, d) => {
+            d3.select(event.currentTarget).classed("hover", false); // remove the class from the polygon
+            tooltip.classed("invisible", true); 
+          });
+        filterByAttribute(facilityData, facilities);
+        drawLegend(svg, width, height, radius);
+      }
+      function drawLegend(svg, width, height, radius) {
+        const legend = svg
+          .append("g")
+          .attr("dy", "1.3em")
+          .attr("class", "legend")
+          .attr(
+            "transform",
+            "translate(" + (width - 40) + "," + (height - 20) + ")"
+          )
+          .selectAll("g")
+          .data([5e6, 2e7])
+          .join("g");
+
+        legend
+          .append("circle")
+          .attr("cy", (d) => {
+            return -radius(d);
+          })
+          .attr("r", radius);
+
+        legend
+          .append("text")
+          .attr("y", (d) => {
+            return -2 * radius(d);
+          })
+          .attr("dy", "1.3em")
+          .text(d3.format(".1s"));
+
+        legend.append("text").attr("y", 16).text("metric tons");
+      }
+      function filterByAttribute(facilityData, facilities) {
+        // array to hold select options
+        var uniqueTypes = [];
+
+        // loop through all features and push unique types to array
+        facilityData.forEach(function (facility) {
+          if (!uniqueTypes.includes(facility.Industry_Type)) {
+            uniqueTypes.push(facility.Industry_Type);
+          }
+        });
+
+        // sort strings alphabetically
+        uniqueTypes.sort();
+
+        // add an all facilities to the beginning
+        uniqueTypes.unshift("All facilities");
+
+        // select all the options (that don't exist yet)
+        d3.select("#ui .dropdown-menu")
+          .selectAll("a")
+          .data(uniqueTypes) // use array as data
+          .join("a") // append a new option element for each data item
+          .text((d) => {
+            return d; // use the item as text
+          })
+          .attr("value", (d) => {
+            return d; // use the time as value attribute
+          })
+          .attr("href", "#")
+          .classed("dropdown-item", true)
+          .on("click", onchange); // when the user clicks call onchange function
+
+        function onchange() {
+          // get the currently selected value
+          let val = d3.select(this).attr("value");
+
+          // change the display property for each circle
+          facilities.style("display", (d) => {
+            if (val === "All facilities") return "inline";
+            if (d.Industry_Type != val) return "none";
+          });
+
+          d3.select("#ui > a").html(val); // update the UI with current val
+        }
+      }
+    </script>
+  </body>
+</html>
